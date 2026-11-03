@@ -38,6 +38,7 @@ When evaluated against the generated sample size of 20,000 users, the pipeline y
 
 ### Conversion Rate Visualization
 The script automatically exports a `conversion.png` plot displaying confidence intervals to back up the data when presenting to product stakeholders.
+
 ![Conversion Rate](conversion.png)
 
 ## 🚀 Getting Started
