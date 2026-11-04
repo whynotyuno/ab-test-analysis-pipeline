@@ -70,7 +70,7 @@ Synthetic data, 20,000 users.
 
 ```bash
 git clone https://github.com/whynotyuno/<repository-name>.git
-cd <repository-name>
+cd ab-test-analysis-pipeline
 pip install -r requirements.txt
 ```
 
