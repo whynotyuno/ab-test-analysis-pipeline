@@ -1,62 +1,93 @@
-# A/B-Test Analysis Pipeline
+# A/B Test Analysis in Python
 
-A comprehensive pipeline for analytical evaluation and validation of A/B test results, featuring automated data quality controls and robust statistical estimation for skewed financial metrics.
+Analysis of an A/B test on synthetic data: sample ratio check, significance test for conversion and bootstrap for revenue.
 
-## 🎯 Project Overview
-This project implements an end-to-end analytical pipeline designed to ingest raw experimental user activity logs and perform a rigorous statistical assessment. The architecture is built to mitigate the risks of making flawed product decisions caused by sample allocation bugs or extreme user behavior ("whales").
+> **Note:** the data is synthetic and produced by `generate_data.py`. The effect (+1.5 percentage points of conversion) is planted on purpose, so the results demonstrate the methods, not a real product change.
 
-## ⚙️ Tech Stack
-*   **Python 3.14**
-*   **NumPy** (vectorized computations, synthetic data generation)
-*   **Pandas** (data aggregation, segmentation, pivot tables)
-*   **SciPy** (`stats.chisquare`, `stats.norm`) — statistical testing framework
-*   **Matplotlib** (visualization of conversion metrics and confidence intervals)
+## About
 
-## 🧠 Methodology & Core Components
+The project walks through the standard steps of analyzing an experiment:
 
-### 1. Data Quality Guard (SRM Detection)
-Before computing core metrics, the pipeline executes a **Sample Ratio Mismatch (SRM)** check using **Pearson's Chi-Square ($\chi^2$) Goodness-of-Fit test**. This automatically detects technical issues in the traffic split mechanism or potential bot activity. The significance threshold is set at a strict conservative level of $\alpha = 0.001$.
+1. verify that traffic was split as planned (SRM check);
+2. compare conversion between groups and quantify the uncertainty;
+3. compare revenue per user, which is skewed and full of zeros;
+4. look at the effect across platforms.
 
-### 2. Conversion Rate Analysis (Binomial Metrics)
-For the binary conversion metric, a **Two-Proportion Z-Test** is applied.
-*   **p-value** is calculated using a **pooled standard error**, operating under the null hypothesis ($H_0$) framework where group proportions are assumed equal.
-*   **95% Confidence Interval** of the difference is constructed using **unpooled (separate) standard errors**, aligning with the alternative hypothesis ($H_1$) framework.
+## Data
 
-### 3. Financial Metrics Analysis (ARPU)
-Revenue distribution in digital products typically exhibits a severe right skew (lognormal distribution) with a heavy inflation of zeros and a long tail driven by high-spending users ("whales"). Standard parametric tests (like the T-test) lose statistical power under these conditions. The pipeline addresses this by implementing a **non-parametric percentile Bootstrap (2,000 resamples)** to generate unbiased point estimates and confidence intervals for ARPU variance.
+`generate_data.py` creates `ab_data.csv` with 20,000 users.
 
-### 4. Cross-Platform Audit (Sanity Check)
-To isolate platform-specific anomalies or OS-level rendering bugs, the pipeline automatically breaks down the experimental effects across `iOS`, `Android`, and `Web` segments.
+| Column | Description |
+|---|---|
+| `user_id` | user identifier |
+| `group` | `control` or `test`, assigned randomly 50/50 |
+| `platform` | `ios`, `android` or `web` |
+| `converted` | whether the user converted (`True` / `False`) |
+| `revenue` | revenue of the user, `0` if not converted |
 
-## 📊 Experimental Results
+Base conversion is 10%, the test group has 11.5% (planted effect). Revenue of converted users follows a lognormal distribution.
 
-When evaluated against the generated sample size of 20,000 users, the pipeline yielded the following insights:
+## Methodology
 
-*   **[SRM]:** Traffic split is mathematically sound (`p-value = 0.3086 -> OK`).
-*   **[Conversion]:** Statistically significant increase in the test group by **+1.52%** (`p-value = 0.0006`, 95% CI: `+0.66%` to `+2.38%`).
-*   **[ARPU]:** Statistically significant lift in average revenue per user by **+3.96** units (95% bootstrap CI: `+1.25` to `+6.56`).
+**1. SRM check.** A Pearson chi-square goodness-of-fit test checks that the split is 50/50 (threshold α = 0.001). A tiny p-value would mean the split is broken and results cannot be trusted. SRM shows that a mismatch exists, not what caused it.
 
-### Conversion Rate Visualization
-The script automatically exports a `conversion.png` plot displaying confidence intervals to back up the data when presenting to product stakeholders.
+**2. Conversion.** Two-proportion z-test. The p-value uses a pooled standard error (under H₀ both groups share one conversion rate); the 95% confidence interval of the difference uses unpooled standard errors.
 
-![Conversion Rate](conversion.png)
+**3. Revenue per user (ARPU).** Revenue is right-skewed with many zeros, so the normality assumption of a t-test is questionable. A percentile bootstrap (2,000 resamples) gives a 95% confidence interval for the difference in ARPU.
 
-## 🚀 Getting Started
+**4. Platform breakdown.** Conversion by platform as a sanity check. Differences between platforms are not tested for significance.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com
-   cd ab-test-analysis-pipeline
-   ```
-2. Install dependencies:
-   ```bash
-   pip install numpy pandas scipy matplotlib
-   ```
-3. Generate synthetic experimental data:
-   ```bash
-   python generate_data.py
-   ```
-4. Run the comprehensive analysis suite:
-   ```bash
-   python analyze.py
-   ```
+## Results
+
+Synthetic data, 20,000 users.
+
+| Metric | Control | Test | Difference | 95% CI | p-value |
+|---|---|---|---|---|---|
+| Users | 10,072 | 9,928 | — | — | SRM: 0.31 (OK) |
+| Conversion | 10.05% | 11.56% | +1.52 p.p. (≈ +15% relative) | [+0.66; +2.38] p.p. | 0.0006 |
+| ARPU | 20.35 | 24.31 | +3.96 | [+1.25; +6.56] (bootstrap) | — |
+
+![Conversion by group](conversion.png)
+
+## Project structure
+
+```
+.
+├── generate_data.py   # synthetic data generator
+├── analyze.py         # SRM, z-test, bootstrap, platform breakdown, plot
+├── requirements.txt   # dependencies
+├── conversion.png     # output plot
+└── README.md
+```
+
+## Getting started
+
+### Prerequisites
+
+- Python 3.9+
+
+### Installation
+
+```bash
+git clone https://github.com/whynotyuno/<repository-name>.git
+cd <repository-name>
+pip install -r requirements.txt
+```
+
+### Usage
+
+```bash
+python generate_data.py   # creates ab_data.csv
+python analyze.py         # prints results, saves conversion.png
+```
+
+## Limitations
+
+- Synthetic data with a hand-set effect.
+- No power analysis or sample size calculation.
+- Platform segments are not corrected for multiple comparisons.
+- A single primary metric; guardrail metrics are not modeled.
+
+## Author
+
+[whynotyuno](https://github.com/whynotyuno)
